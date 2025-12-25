@@ -43,5 +43,3 @@ Sometimes artifacts are hilarious/artistic:
 - Abstract art mode
 - Surrealist experiments
 - Meme material 😂
-
-Share your best artifacts: [Discord Link]
