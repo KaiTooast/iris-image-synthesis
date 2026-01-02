@@ -10,6 +10,13 @@ you get a working system, but you decide how far it goes.
 > ⚠️ This project runs **entirely on your own hardware**.  
 > No cloud, no accounts, no telemetry.
 
+![Python](https://img.shields.io/badge/python-3.10+-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-Backend-green)
+![License](https://img.shields.io/badge/license-MIT-purple)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey)
+![Status](https://img.shields.io/badge/status-active%20development-orange)
+
+
 ---
 
 ## ✨ Key Philosophy
