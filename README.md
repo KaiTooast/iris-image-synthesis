@@ -1,10 +1,3 @@
-Alles klar 👍
-Hier ist **der komplette README-Inhalt**, **exakt so**, dass du ihn **1:1 in deine `README.md` kopieren kannst**.
-Ich packe **nur den Dateiinhalte** in eine **Code-Formatierung**, ohne zusätzliche Erklärungen dazwischen.
-
----
-
-```markdown
 # 🎨 I.R.I.S.
 ### Intelligent Rendering & Image Synthesis
 
