@@ -1,440 +1,282 @@
-# Contributing to I.R.I.S. (Intelligent Rendering & Image Synthesis)
+Alles klar 👍
+Hier ist eine **verbesserte, aufgeräumte und leicht professioneller formulierte Version** deiner **CONTRIBUTING.md**.
 
-First off, thank you for considering contributing! It's people like you that make this project better.
+➡️ **Nur der Inhalt für die Datei**, komplett kopier- & einfügbar:
+
+````markdown
+# Contributing to I.R.I.S.
+**Intelligent Rendering & Image Synthesis**
+
+Thank you for your interest in contributing to I.R.I.S.!  
+This project aims to be an open, flexible and hardware-friendly platform for AI image generation.
 
 ---
 
 ## Table of Contents
-1. [Code of Conduct](#code-of-conduct)
-2. [How Can I Contribute?](#how-can-i-contribute)
-3. [Development Setup](#development-setup)
-4. [Pull Request Process](#pull-request-process)
-5. [Coding Standards](#coding-standards)
-6. [Testing Guidelines](#testing-guidelines)
-7. [Configuration & Discord Setup](#configuration--discord-setup)
+1. Code of Conduct  
+2. Ways to Contribute  
+3. Development Setup  
+4. Pull Request Workflow  
+5. Coding Standards  
+6. Testing Guidelines  
+7. Discord & Configuration  
+8. Getting Help  
 
 ---
 
 ## Code of Conduct
 
-This project adheres to a [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code.
+This project follows a simple principle:
 
-**TL;DR**: Be respectful, inclusive, and professional. I.R.I.S. is an AI image generation platform focused on creative content.
+> **Be respectful, inclusive, and constructive.**
+
+Harassment, hate speech, discrimination, or intentionally harmful contributions are not tolerated.
+
+By contributing, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ---
 
-## How Can I Contribute?
+## Ways to Contribute
 
-### Bugs & Features
+### 🐛 Bug Reports
+Before opening a new issue:
+- Check existing issues
+- Test with the latest version
+- Provide clear reproduction steps
 
-**Before submitting:**
-- Check existing [Issues](https://github.com/yourusername/IRIS/issues)
-- Test with latest version
-- Gather relevant information (OS, GPU, Python version, CUDA version)
-
-**Bug Report Template:**
+**Bug Report Template**
 ```markdown
-**Describe the bug**
-A clear description of what the bug is.
+**Description**
+Clear and concise description of the issue.
 
-**To Reproduce**
-Steps to reproduce:
-1. Go to '...'
-2. Click on '...'
-3. See error
+**Steps to Reproduce**
+1. Go to ...
+2. Click ...
+3. Error appears
 
-**Expected behavior**
-What you expected to happen.
+**Expected Behavior**
+What should happen instead?
 
-**Screenshots**
-If applicable, add screenshots.
+**Environment**
+- OS:
+- GPU:
+- VRAM:
+- Python:
+- CUDA / ROCm:
+````
 
-**Environment:**
-- OS: [e.g., Windows 11]
-- GPU: [e.g., RTX 3060]
-- Python Version: [e.g., 3.11]
-- CUDA Version: [e.g., 12.1]
-- VRAM: [e.g., 6GB]
+---
 
-**Additional context**
-Any other relevant information.
+### ✨ Feature Requests
+
+```markdown
+**Problem**
+What limitation does this solve?
+
+**Proposed Solution**
+Describe your idea.
+
+**Alternatives**
+Any other approaches considered?
+
+**Why for I.R.I.S.?**
+How does this fit the project's philosophy?
 ```
 
-**Feature Request Template:**
-```markdown
-**Is your feature request related to a problem?**
-A clear description of the problem.
+---
 
-**Describe the solution you'd like**
-What you want to happen.
+### 🧠 Code Contributions
 
-**Describe alternatives you've considered**
-Other solutions you've thought about.
+We welcome:
 
-**Related to I.R.I.S.**
-How does this feature fit with I.R.I.S.'s goals?
+* Performance optimizations
+* New AI models
+* Scheduler & sampler improvements
+* UI/UX enhancements
+* Memory management improvements
+* AMD / Intel / Apple compatibility
+* Documentation improvements
 
-**Additional context**
-Mockups, examples, or references.
-```
-
-### Code Contributions
-
-We accept contributions for:
-- Bug fixes
-- New features (discuss in Issues first)
-- Performance improvements
-- UI/UX enhancements
-- Better Discord integration
-- Model improvements
-- Memory optimization
-
-### Documentation Improvements
-
-Documentation improvements are always welcome!
-- Fix typos
-- Clarify instructions
-- Add examples
-- Document GPU compatibility
-- Improve setup guides
+Large features should be discussed via Issues first.
 
 ---
 
 ## Development Setup
 
 ### 1. Fork & Clone
+
 ```bash
-# Fork on GitHub, then:
 git clone https://github.com/YOUR_USERNAME/IRIS.git
 cd IRIS
 git remote add upstream https://github.com/ORIGINAL_OWNER/IRIS.git
 ```
 
-### 2. Create Branch
+---
+
+### 2. Create a Branch
+
 ```bash
-git checkout -b feature/your-feature-name
+git checkout -b feature/my-feature
 # or
-git checkout -b fix/bug-description
+git checkout -b fix/my-bug
 ```
 
-**Branch naming:**
-- `feature/` - New features
-- `fix/` - Bug fixes
-- `docs/` - Documentation
-- `refactor/` - Code refactoring
-- `test/` - Adding tests
+**Branch naming**
 
-### 3. Install Dependencies
+* `feature/` – New features
+* `fix/` – Bug fixes
+* `docs/` – Documentation
+* `refactor/` – Refactoring
+* `test/` – Tests
+
+---
+
+### 3. Python Environment
+
 ```bash
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+# Windows
+venv\Scripts\activate
+# Linux / macOS
+source venv/bin/activate
 
-# Install requirements
 pip install -r requirements.txt
 ```
 
-### 4. Configure for Development
-Create a `.env` file in the root directory:
+---
+
+### 4. Environment Configuration
+
+Create a `.env` file:
 
 ```env
-# Discord Bot Configuration
-DISCORD_BOT_TOKEN=your_bot_token_here
-DISCORD_BOT_OWNER_ID=your_discord_user_id
-DISCORD_BOT_ID=bot_user_id
-
-# Discord Channel IDs
-DISCORD_CHANNEL_NEW_IMAGES=channel_id_for_new_images
-DISCORD_CHANNEL_VARIATIONS=channel_id_for_variations
-DISCORD_CHANNEL_UPSCALED=channel_id_for_upscaled
-
-# Server Configuration
-SERVER_PORT=8000
 SERVER_HOST=0.0.0.0
+SERVER_PORT=8000
+
+DISCORD_BOT_TOKEN=your_token
+DISCORD_BOT_OWNER_ID=your_id
+DISCORD_BOT_ID=bot_id
+
+DISCORD_CHANNEL_NEW_IMAGES=channel_id
+DISCORD_CHANNEL_VARIATIONS=channel_id
+DISCORD_CHANNEL_UPSCALED=channel_id
 ```
 
-### 5. Test Your Setup
+---
+
+### 5. Running the Project
+
 ```bash
-# Start the web UI only
+# Web UI only
 python src/start.py web
 
-# Or start bot only
+# Discord bot only
 python src/start.py bot
 
-# Or start everything
+# Everything
 python src/start.py all
 ```
 
 ---
 
-## Configuration & Discord Setup
+## Pull Request Workflow
 
-### Discord Bot Setup
+### Commit Style
 
-1. **Create Application** at [Discord Developer Portal](https://discord.com/developers/applications)
-2. **Enable Intents:**
-   - Message Content Intent
-   - Server Members Intent
-   - Guild Members Intent
+```text
+type: short description
 
-3. **Get IDs:**
-   - Application ID (use as Bot User ID)
-   - Your Personal Discord ID (right-click user → Copy User ID)
+Optional longer explanation
+Fixes #issue_number
+```
 
-4. **Create Discord Server** for testing (if needed)
+**Types**
 
-5. **Create Channels:**
-   - `#generated-images` (for new images)
-   - `#variations` (for image variations)
-   - `#upscaled` (for upscaled images)
-
-6. **Get Channel IDs:**
-   - Enable Developer Mode in Discord (User Settings → App Settings → Advanced)
-   - Right-click channel → Copy Channel ID
-   - Add IDs to `.env` file
+* `feat` – New feature
+* `fix` – Bug fix
+* `docs` – Documentation
+* `refactor` – Code cleanup
+* `test` – Tests
+* `chore` – Maintenance
 
 ---
 
-## Pull Request Process
+### Pull Request Checklist
 
-### 1. Commit Your Changes
-```bash
-git add .
-git commit -m "feat: add custom resolution support"
-```
-
-**Commit message format:**
-```
-<type>: <short summary>
-
-<optional detailed description>
-
-Fixes #<issue_number> (if applicable)
-```
-
-**Types:**
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation
-- `style`: Formatting (no code change)
-- `refactor`: Code restructuring
-- `test`: Adding tests
-- `chore`: Maintenance
-
-**Examples:**
-```bash
-feat: add support for custom resolutions
-fix: resolve Discord channel validation issue
-docs: update GPU compatibility guide
-refactor: optimize image sending performance
-```
-
-### 2. Push to Your Fork
-```bash
-git push origin feature/your-feature-name
-```
-
-### 3. Create Pull Request
-
-Go to GitHub and create a PR with:
-
-**Title:** Clear, descriptive (e.g., "Add custom resolution support")
-
-**Description:**
-```markdown
-## Description
-Brief explanation of changes and why they're needed.
-
-## Related Issue
-Fixes #<issue_number> (if applicable)
-
-## Type of Change
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Breaking change
-- [ ] Documentation update
-
-## Testing
-How you tested this:
-- [ ] Tested locally on Windows/Linux/Mac
-- [ ] Tested with GPU
-- [ ] Tested Discord integration
-- [ ] Added unit tests
-
-## Screenshots
-If UI changes, add before/after screenshots.
-
-## Checklist
-- [ ] Code follows style guidelines
-- [ ] Self-reviewed the code
-- [ ] Commented hard-to-understand areas
-- [ ] Updated documentation
-- [ ] No new warnings
-```
+* [ ] Code follows style guidelines
+* [ ] Tested locally
+* [ ] No breaking changes (or documented)
+* [ ] Documentation updated if needed
 
 ---
 
 ## Coding Standards
 
-### Python Style Guide
+### Python Guidelines
 
-**Follow PEP 8** with these specifics:
+* Follow **PEP 8**
+* Use type hints
+* Use docstrings
+* Max line length: **100**
+* Prefer clarity over cleverness
+
+**Good Example**
 
 ```python
-# Good - Clear, well-documented
-def send_image_to_discord(filename: str, channel_id: int) -> bool:
-    """
-    Send generated image to specified Discord channel.
-    
-    Args:
-        filename: Name of the image file to send
-        channel_id: Discord channel ID to send to
-    
-    Returns:
-        True if successful, False otherwise
-    """
-    try:
-        # Implementation
-        return True
-    except Exception as e:
-        logger.error(f"Failed to send {filename}: {e}")
-        return False
-
-# Bad - Unclear, no documentation
-def send_img(f, c):
+def generate_image(prompt: str, steps: int) -> bool:
+    """Generate an image from a text prompt."""
     return True
-```
-
-**Key Rules:**
-- Use type hints
-- Write docstrings for functions/classes
-- Meaningful variable names
-- Max line length: 100 characters
-- Use f-strings for formatting
-- Imports: stdlib → third-party → local
-
-### File Organization
-
-```
-src/
-├── api/
-│   └── server.py           # FastAPI backend
-├── services/
-│   └── bot.py              # Discord bot with configurable channels
-├── core/
-│   ├── config.py           # Configuration management
-│   ├── generator.py        # Image generation logic
-│   └── model_loader.py     # AI model loading
-├── utils/
-│   ├── logger.py           # Logging system
-│   └── file_manager.py     # File operations
-└── start.py                # Entry point
-
-static/
-├── data/
-│   ├── prompts_history.json    # Prompt logging
-│   └── img_send.json           # Sent images tracking
-└── config/                     # User configuration files
-
-tests/
-├── test_generation.py      # Image generation tests
-├── test_discord.py         # Discord integration tests
-└── test_api.py            # API endpoint tests
-```
-
----
-
-## Testing Guidelines
-
-### Unit Tests
-
-```python
-# tests/test_discord.py
-import pytest
-from src.services.bot import load_sent_images, save_sent_image
-
-def test_load_sent_images():
-    """Test loading sent images from JSON"""
-    load_sent_images()
-    # Verify data loaded correctly
-    pass
-
-def test_save_sent_image():
-    """Test saving sent image to JSON"""
-    save_sent_image("test.png", "https://discord.com/channels/...")
-    # Verify file was saved
-    pass
-```
-
-### Running Tests
-
-```bash
-# Run all tests
-pytest
-
-# Run specific test file
-pytest tests/test_discord.py
-
-# Run with coverage
-pytest --cov=src tests/
-
-# Run with verbose output
-pytest -v
 ```
 
 ---
 
 ## Project Structure
 
-I.R.I.S. is structured for easy maintenance and GPU compatibility:
+```text
+src/
+├── api/            # FastAPI backend
+├── core/           # Generation logic
+├── services/       # Discord & integrations
+├── utils/          # Helpers & logging
+├── start.py        # Entry point
 
-```
-IRIS/
-├── src/
-│   ├── api/                    # API layer
-│   ├── services/               # External services (Discord)
-│   ├── core/                   # Core business logic
-│   ├── utils/                  # Utilities
-│   └── start.py                # Entry point
-├── static/
-│   ├── data/                   # JSON logs
-│   ├── config/                 # Configuration (not in Git)
-│   └── assets/                 # Images and styling
-├── outputs/                    # Generated images
-├── Logs/                       # Application logs
-├── docs/                       # Documentation
-├── requirements.txt            # Python dependencies
-├── .env                        # Environment variables (not in Git)
-├── CONTRIBUTING.md             # This file
-├── LICENSE                     # License
-└── README.md                   # Project overview
+static/
+├── assets/
+├── config/
+├── data/
+
+outputs/
+logs/
+tests/
 ```
 
 ---
 
-## Getting Help
+## Testing Guidelines
 
-**Stuck?** We're here to help!
+```bash
+pytest
+pytest -v
+pytest --cov=src
+```
 
-- Chat in [GitHub Discussions](https://github.com/yourusername/IRIS/discussions)
-- Report in [Issues](https://github.com/yourusername/IRIS/issues)
-- Check [docs/SETUP.md](docs/SETUP.md) for installation help
-- Check [README.md](README.md) for project overview
+Tests are encouraged but not mandatory for small fixes.
 
 ---
 
-## Recognition
+## Discord & Community
 
-Contributors are recognized in:
-- README.md Contributors section
-- Release notes
-- GitHub Contributors graph
+* Use GitHub Issues for bugs & features
+* Use Discussions for ideas & questions
+* Be respectful and constructive
 
 ---
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+By contributing, you agree that your work will be released under the **MIT License**.
 
 ---
 
-Thank you for contributing to I.R.I.S.! Every contribution helps improve AI image generation for everyone. Let's build something amazing together!
+Thank you for contributing to **I.R.I.S.**
+Together we build an open, flexible and future-proof AI image generation platform.
