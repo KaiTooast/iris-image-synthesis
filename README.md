@@ -1,9 +1,9 @@
-# 🌌 I.R.I.S. Engine
+# 🌌 I.R.I.S.
 ### Intelligent Rendering & Image Synthesis
 
 **A modular, local-first AI image generation engine — built to be forked, extended, and owned.**
 
-I.R.I.S. Engine is an **open-source AI image generation platform** designed as a **foundation**, not a locked product.  
+I.R.I.S. is an **open-source AI image generation platform** designed as a **foundation**, not a locked product.  
 Think of it as **Linux for AI image generation**:
 
 > You get a fully working system —  
@@ -69,7 +69,7 @@ CUDA 11.8+ optional (CPU mode supported)
 
 ### Installation
 ```bash
-git clone https://github.com/KaiTooast/iris-engine.git
+git clone https://github.com/KaiTooast/iris.git
 cd iris-engine
 
 python -m venv venv
@@ -164,6 +164,9 @@ scrips/
 >
 > Some folders (e.g. logs, outputs, cached data) are intentionally kept in the repository
 > to show how the system behaves in practice and how components interact at runtime.
+> 
+> The structure is intentionally not over-simplified.
+> It represents a real-world, evolving codebase rather than a polished showcase.
 
 ---
 
@@ -256,7 +259,7 @@ Please read **CONTRIBUTING.md** before submitting a pull request.
 
 ## 🌍 Final Note
 
-I.R.I.S. Engine is not built to compete with cloud AI platforms.
+I.R.I.S. is not built to compete with cloud AI platforms.
 
 It exists to **give control back** to developers and creators.
 
