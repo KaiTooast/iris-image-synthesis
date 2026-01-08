@@ -120,7 +120,9 @@ async def load_models():
     if torch.cuda.is_available():
         device = "cuda"
         gpu_name = torch.cuda.get_device_name(0)
+        # Der Nvidia-Diss
         logger.success(f"NVIDIA GPU detected: {gpu_name}")
+        logger.warning("💡 Note: Paying the 'Logo-Tax' today? Brace for the gatekeeping. 🖕🟢")
         
         vram_total_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
         logger.gpu_info(gpu_name, vram_total_gb, 0, 0)
@@ -139,18 +141,27 @@ async def load_models():
         else:
             logger.warning("No Tensor Cores detected (GTX series). Using float32 for stability")
             dtype = torch.float32
+
     elif torch.backends.mps.is_available():
         device = "mps"
         dtype = torch.float32
-        logger.success("Apple Silicon detected")
+        logger.success("Apple Silicon detected. Nice hardware, but stay open-minded.")
+
     elif hasattr(torch, 'xpu') and torch.xpu.is_available():
         device = "xpu"
         dtype = torch.float32
-        logger.success("Intel Arc detected")
+        # Der Intel-Willkommensgruß
+        logger.success("🔵 Intel Arc detected. WELCOME TO THE RESISTANCE!")
+        logger.info("Enjoy your VRAM freedom. No 'Green Tax' detected here. 🌌")
+
     else:
         device = "cpu"
         dtype = torch.float32
-        logger.warning("No GPU detected, using CPU (this will be SLOW!)")
+        # Voller Respekt für die CPU-Geduld
+        logger.info("=" * 70)
+        logger.success("I.R.I.S. is running in Pure CPU Mode.")
+        logger.info("Hand on heart: We respect the patience. True art takes time. 🎨☕")
+        logger.info("=" * 70)
     
     logger.model_load_start("Ojimi/anime-kawai-diffusion")
     logger.info("This takes 5-10 minutes on first start (model will be downloaded)...")

@@ -1106,7 +1106,8 @@
 
         function randomSeed() {
             if (!seedLocked) {
-                const seed = Math.floor(Math.random() * 2147483647);
+                // Generiert eine Zahl von 0 bis 999.999
+                const seed = Math.floor(Math.random() * 1000000);
                 document.getElementById('seedInput').value = seed;
             }
         }
@@ -1309,7 +1310,7 @@
             generationActive = false;
         }
 
-        async function generateImage() {
+async function generateImage() {
             if (generating) return;
             
             if (ws && ws.readyState !== WebSocket.CLOSED) {
@@ -1366,16 +1367,15 @@
             const prompt = document.getElementById('promptInput').value;
             lastPrompt = prompt;
             
+            // --- SEED LOGIC FIX ---
             let seed = null;
             let seedInputVal = document.getElementById('seedInput').value;
             
+            // Wenn leer oder -1, senden wir null ans Backend für echten Random
             if (seedInputVal === '-1' || seedInputVal === '') {
-                // Generate random seed
                 seed = null;
-            } else if (seedLocked && seedInputVal) {
-                seed = parseInt(seedInputVal);
             } else {
-                seed = seedInputVal ? parseInt(seedInputVal) : null;
+                seed = parseInt(seedInputVal);
             }
             
             const settings = {
@@ -1398,9 +1398,8 @@
                 ws.onmessage = (event) => {
                     const data = JSON.parse(event.data);
                     if (data.type === 'progress') updateProgress(data);
-                    else if (data.type === 'completed') handleCompletion(data);
+                    else if (data.type === 'completed') handleCompletion(data); // Hier kommt der echte Seed zurück
                     else if (data.type === 'warning') {
-                        // Handle NSFW warning
                         if (data.nsfw_blocked) {
                             alert('🛡️ Safety Filter Active\n\n' + data.message);
                             resetUI();
@@ -1423,6 +1422,42 @@
             } catch (error) {
                 resetUI();
             }
+        }
+
+        // --- COMPLETION HANDLER (FIX FÜR DAS "N/A" PROBLEM) ---
+        function handleCompletion(data) {
+            generationActive = false;
+            generating = false;
+            if (timerInterval) clearInterval(timerInterval);
+            
+            const img = document.getElementById('previewImage');
+            img.src = data.image_url; // Der Pfad vom Backend
+            img.classList.remove('opacity-50');
+            
+            // Echten Seed vom Server holen (wichtig für den Logger!)
+            const finalSeed = data.seed;
+            
+            // Prompt Logger / Info Display aktualisieren
+            // Stelle sicher, dass die ID 'imageInfo' oder 'stepInfo' existiert
+            if (document.getElementById('stepInfo')) {
+                document.getElementById('stepInfo').textContent = `Seed: ${finalSeed} | Done!`;
+            }
+            
+            // Falls du den Seed im Input-Feld aktualisieren willst:
+            if (document.getElementById('seedInput').value === '-1') {
+                 // Zeigt den gewürfelten Seed an, damit man ihn sieht
+                 console.log("Random Seed was:", finalSeed);
+            }
+
+            const btn = document.getElementById('generateBtn');
+            btn.disabled = false;
+            btn.innerHTML = 'GENERATE';
+            
+            document.getElementById('gpuStatusDot').classList.add('bg-green-500');
+            document.getElementById('gpuStatusDot').classList.remove('bg-purple-500', 'animate-pulse');
+            document.getElementById('gpuStatusText').textContent = 'Ready';
+            
+            refreshOutputGallery();
         }
 
         function resetUI() {

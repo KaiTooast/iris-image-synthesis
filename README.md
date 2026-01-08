@@ -70,7 +70,7 @@ CUDA 11.8+ optional (CPU mode supported)
 ### Installation
 ```bash
 git clone https://github.com/KaiTooast/iris.git
-cd iris-engine
+cd iris
 
 python -m venv venv
 # Windows
@@ -206,12 +206,16 @@ You are explicitly encouraged to:
 
 ## 🖥️ Hardware Reference
 
-| Tier        | GPU      | VRAM  | Notes              |
-| ----------- | -------- | ----- | ------------------ |
-| Minimum     | GTX 1650 | 4 GB  | Tested & supported |
-| Recommended | RTX 3060 | 12 GB | Smooth experience  |
-| High-End    | RTX 4090 | 24 GB | Near real-time     |
+| Tier           | GPU                       | VRAM  | Notes                                                |
+| -------------- | ------------------------- | ----- | ---------------------------------------------------- |
+| **Minimum** | NVIDIA GTX 1650           | 4 GB  | The birthplace. Small models only.                   |
+| **Sweet Spot** | **Intel Arc B580** | 12 GB | **Phase 3: Best bang for buck. No "Green" tax.** 🖕🟢 |
+| **Advanced** | NVIDIA RTX 4070 Super     | 12 GB | Faster inference, but still VRAM-limited.            |
+| **Professional**| NVIDIA RTX 3090 Ti / 4090 | 24 GB | No-compromise local AI & SDXL.                       |
+| **God Tier** | **NVIDIA RTX 5090** | 32 GB | Industrial scale / Near real-time. (Overkill)        |
 
+> 💡 **Developer Note:** I.R.I.S. is built to give control back to you. We optimize for the best hardware per dollar, not for the most expensive branding.
+> 
 > The engine was **tested on a GTX 1650**, proving functionality on low-end hardware.
 
 ---

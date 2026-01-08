@@ -14,7 +14,7 @@ This roadmap reflects intent, not promises.
 
 ---
 
-## 🔄 Phase 2 – Stability & Polish
+## 🔄 Phase 2 – Stability & Polish (Finalizing)
 
 - Improved error handling
 - Better WebSocket resilience
@@ -24,12 +24,13 @@ This roadmap reflects intent, not promises.
 
 ---
 
-## 🧠 Phase 3 – Hardware Expansion
+## 🧠 Phase 3 – Hardware Expansion (ACTIVE FOCUS)
 
+- **[IN PROGRESS]** Intel ARC / OneAPI support (Targeting Battlemage B580)
+- **[IN PROGRESS]** Modular upscaler interface (XeSS implementation)
 - AMD ROCm testing
-- Intel ARC / OneAPI support
 - macOS Metal experimentation
-- Modular upscaler interface (FSR / XeSS)
+- Total independence from "Green" vendor lock-in 🖕🟢
 
 ---
 

@@ -2,38 +2,23 @@
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 websockets==12.0
-python-multipart==0.0.6
 
-# AI/ML - Updated diffusers and added huggingface_hub to fix ImportError
+# AI/ML - NVIDIA CUDA 12.1 Force (Zwingt GPU-Support herbei)
+--extra-index-url https://download.pytorch.org/whl/cu121
 torch>=2.0.0
 torchvision>=0.15.0
 torchaudio>=2.0.0
+
+# Für deine Phase 3 (Intel Arc Support)
+# intel-extension-for-pytorch  # Erst einkommentieren, wenn die B580 da ist!
+
 diffusers==0.30.3
 transformers==4.40.0
 accelerate==0.28.0
 huggingface_hub>=0.24.0
 
-# Image Processing
+# Restliche Dependencies...
 Pillow==10.1.0
 numpy==1.24.3
-scipy==1.11.4
-opencv-python>=4.8.0
-
-# Discord Bot
-discord.py==2.3.2
-
-# Utilities
-python-dotenv==1.0.0
-pydantic==2.5.0
-aiofiles==23.2.1
 loguru==0.7.2
-
-# Optional: Performance Boost (uncomment if you have compatible GPU)
-# xformers==0.0.23  # Requires specific CUDA version
-
-# High-quality upscaling using Real-ESRGAN (4x upscaler + Lanczos downscale = 2x with better quality)
-realesrgan==0.3.0
-basicsr>=1.4.2
-facexlib>=0.3.0
-
-timm>=0.9.0  # Required for SwinIR
+python-dotenv==1.0.0
