@@ -209,7 +209,7 @@ You are explicitly encouraged to:
 | Tier           | GPU                       | VRAM  | Notes                                                |
 | -------------- | ------------------------- | ----- | ---------------------------------------------------- |
 | **Minimum** | NVIDIA GTX 1650           | 4 GB  | The birthplace. Small models only.                   |
-| **Sweet Spot** | **Intel Arc B580** | 12 GB | **Phase 3: Best bang for buck. No "Green" tax.** 🖕🟢 |
+| **Sweet Spot** | **Intel Arc B580** | 12 GB | **Phase 3: Best bang for buck.** |
 | **Advanced** | NVIDIA RTX 4070 Super     | 12 GB | Faster inference, but still VRAM-limited.            |
 | **Professional**| NVIDIA RTX 3090 Ti / 4090 | 24 GB | No-compromise local AI & SDXL.                       |
 | **God Tier** | **NVIDIA RTX 5090** | 32 GB | Industrial scale / Near real-time. (Overkill)        |
