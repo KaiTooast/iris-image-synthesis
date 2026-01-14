@@ -19,7 +19,7 @@ No cloud. No accounts. No telemetry. No vendor lock-in.
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![WebSockets](https://img.shields.io/badge/WebSockets-realtime-purple)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey)
-![Status](https://img.shields.io/badge/status-v1.0.0-brightgreen)
+![Status](https://img.shields.io/badge/status-v1.2.0-brightgreen)
 
 ---
 
@@ -89,12 +89,19 @@ cp .env.example .env
 # Linux / macOS
 python src/start.py
 
-# Force start without Discord bot
+# Server Modes
+python src/start.py --mode api      # API only
+python src/start.py --mode html     # API + HTML (default)
+python src/start.py --mode react    # API + React build
+python src/start.py --mode full     # All frontends
+
+# Without Discord bot
 python src/start.py --no-bot
 ```
 
 🌐 **HTML Frontend:** [http://localhost:8000](http://localhost:8000)  
-🌐 **React Frontend:** Run `npm run dev` in `frontend-react/` → [http://localhost:3000](http://localhost:3000)
+🌐 **React Frontend:** [http://localhost:8000/app](http://localhost:8000/app) (with `--mode react`)  
+🔐 **Admin Panel:** [http://localhost:8000/app/admin](http://localhost:8000/app/admin)
 
 ---
 

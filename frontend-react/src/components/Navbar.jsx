@@ -6,7 +6,7 @@ export default function Navbar({ variant = 'default' }) {
   
   const links = [
     { to: '/gallery', label: 'Gallery' },
-    { to: '/settings', label: 'Settings' },
+    { to: '/dashboard', label: 'Dashboard' },
     { to: 'https://github.com/KaiTooast/iris', label: 'GitHub', external: true },
   ]
 

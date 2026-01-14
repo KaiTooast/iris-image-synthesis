@@ -4,6 +4,8 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  // Base path for production build (served under /app)
+  base: '/app/',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -21,6 +23,10 @@ export default defineConfig({
         ws: true,
       },
       '/assets': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/static': {
         target: 'http://localhost:8000',
         changeOrigin: true,
       },

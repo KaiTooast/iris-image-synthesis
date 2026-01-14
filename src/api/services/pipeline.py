@@ -14,51 +14,101 @@ from src.utils.logger import create_logger
 logger = create_logger("PipelineService")
 
 # Model configurations
+# =====================
+# VRAM Requirements (approximate, at 512x768):
+#   - SD 1.5 based models: ~3-4 GB VRAM (with optimizations: ~2.5 GB)
+#   - SDXL based models: ~8-10 GB VRAM (with optimizations: ~6 GB)
+#
+# Performance Notes:
+#   - Speed depends on GPU, VRAM, and model architecture
+#   - SD 1.5 models are ~2-3x faster than SDXL models
+#   - DRAM Extension allows running on low VRAM but is slower
+#
+# Sorted by Performance Tier (S → C)
+#
 MODEL_CONFIGS = {
-    "anime_kawai": {
-        "id": "Ojimi/anime-kawai-diffusion",
-        "description": "Anime & Kawai Style"
+    # ============ S-TIER (Best Quality & Versatility) ============
+    "animagine_xl": {
+        "id": "cagliostrolab/animagine-xl-3.1",
+        "description": "High-Quality Modern Anime (SDXL)",
+        # VRAM: ~8-10 GB | Quality: ★★★★★ | Speed: ★★☆☆☆
+        # Best for: High-resolution anime art, detailed illustrations
+        # Note: Requires significant VRAM, not recommended for <8GB cards
     },
-    "stable_diffusion_2_1": {
-        "id": "stabilityai/stable-diffusion-2-1",
-        "description": "Realistic Photo Style"
+    "dreamshaper_8": {
+        "id": "Lykon/dreamshaper-8",
+        "description": "Best Allround Model (Fast)",
+        # VRAM: ~3-4 GB | Quality: ★★★★★ | Speed: ★★★★☆
+        # Best for: Everything - anime, realistic, fantasy
+        # Highly recommended for versatility
     },
     "stable_diffusion_3_5": {
         "id": "stabilityai/stable-diffusion-3.5-medium",
-        "description": "High-Quality Realistic Style"
+        "description": "High-Quality Realistic Style",
+        # VRAM: ~10-12 GB | Quality: ★★★★★ | Speed: ★★☆☆☆
+        # Best for: Highest quality realistic images
+        # Note: Requires high VRAM, newest architecture
     },
-    "flux_1_fast": {
-        "id": "black-forest-labs/FLUX.1-schnell",
-        "description": "Fast & Efficient Style"
-    },
-    "openjourney": {
-        "id": "prompthero/openjourney",
-        "description": "Artistic Illustration Style"
-    },
-    "pixel_art": {
-        "id": "nitrosocke/pixel-art-diffusion",
-        "description": "Pixel Art & Retro Style"
-    },
-    "pony_diffusion": {
-        "id": "AstraliteHeart/pony-diffusion-v6-xl",
-        "description": "High-End Anime & Character Style (SDXL)"
-    },
-    "anything_v5": {
-        "id": "stablediffusionapi/anything-v5",
-        "description": "Classic Flat Anime Style (Fast)"
-    },
-    "animagine_xl": {
-        "id": "CagliostroResearchGroup/animagine-xl-3.1",
-        "description": "High-Quality Modern Anime (SDXL)"
+    
+    # ============ A-TIER (High Quality) ============
+    "anime_kawai": {
+        "id": "Ojimi/anime-kawai-diffusion",
+        "description": "Anime & Kawai Style",
+        # VRAM: ~3-4 GB | Quality: ★★★★☆ | Speed: ★★★★☆
+        # Best for: Cute anime style, kawaii characters
+        # Recommended default for most users
     },
     "aom3": {
         "id": "WarriorMama777/AbyssOrangeMix3",
-        "description": "Semi-Realistic Anime Style"
+        "description": "Semi-Realistic Anime Style",
+        # VRAM: ~3-4 GB | Quality: ★★★★☆ | Speed: ★★★★☆
+        # Best for: Semi-realistic anime, detailed faces
+        # Good balance of quality and speed
     },
     "counterfeit_v3": {
         "id": "stablediffusionapi/counterfeit-v30",
-        "description": "Detailed Digital Illustration Style"
-    }
+        "description": "Detailed Digital Illustration Style",
+        # VRAM: ~3-4 GB | Quality: ★★★★☆ | Speed: ★★★★☆
+        # Best for: Digital art, detailed illustrations
+        # Excellent for character art
+    },
+    "openjourney": {
+        "id": "prompthero/openjourney",
+        "description": "Artistic Illustration Style",
+        # VRAM: ~3-4 GB | Quality: ★★★★☆ | Speed: ★★★★☆
+        # Best for: Midjourney-like artistic style
+        # Great for creative/artistic outputs
+    },
+    "pixel_art": {
+        "id": "nitrosocke/pixel-art-diffusion",
+        "description": "Pixel Art & Retro Style",
+        # VRAM: ~3-4 GB | Quality: ★★★★☆ | Speed: ★★★★★
+        # Best for: Pixel art, retro game assets, 16-bit style
+        # Very fast, specialized for pixel art
+    },
+    
+    # ============ B-TIER (Good Quality, Fast) ============
+    "anything_v5": {
+        "id": "stablediffusionapi/anything-v5",
+        "description": "Classic Flat Anime Style (Fast)",
+        # VRAM: ~3-4 GB | Quality: ★★★☆☆ | Speed: ★★★★★
+        # Best for: Quick generations, flat anime style
+        # Very fast, good for iteration
+    },
+    "stable_diffusion_2_1": {
+        "id": "stabilityai/stable-diffusion-2-1",
+        "description": "Realistic Photo Style",
+        # VRAM: ~4-5 GB | Quality: ★★★☆☆ | Speed: ★★★★☆
+        # Best for: Realistic photos, landscapes
+        # Official Stability AI model
+    },
+    "waifu_diffusion": {
+        "id": "hakurei/waifu-diffusion",
+        "description": "Classic Waifu & Anime Style",
+        # VRAM: ~3-4 GB | Quality: ★★★☆☆ | Speed: ★★★★★
+        # Best for: Classic anime style, waifus
+        # One of the original anime models, very stable
+    },
 }
 
 

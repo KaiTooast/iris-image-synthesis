@@ -1,8 +1,9 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import HomePage from './pages/HomePage'
 import GeneratePage from './pages/GeneratePage'
 import GalleryPage from './pages/GalleryPage'
 import SettingsPage from './pages/SettingsPage'
+import AdminPage from './pages/AdminPage'
 
 function App() {
   return (
@@ -10,7 +11,9 @@ function App() {
       <Route path="/" element={<HomePage />} />
       <Route path="/generate" element={<GeneratePage />} />
       <Route path="/gallery" element={<GalleryPage />} />
-      <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/dashboard" element={<SettingsPage />} />
+      <Route path="/settings" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/admin" element={<AdminPage />} />
     </Routes>
   )
 }

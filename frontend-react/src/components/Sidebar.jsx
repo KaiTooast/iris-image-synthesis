@@ -32,12 +32,27 @@ export default function Sidebar({ children, showControls = false }) {
           <NavLink to="/" current={currentPath}>Home</NavLink>
           <NavLink to="/generate" current={currentPath}>Create</NavLink>
           <NavLink to="/gallery" current={currentPath}>Gallery</NavLink>
-          <NavLink to="/settings" current={currentPath}>Settings</NavLink>
+          <NavLink to="/dashboard" current={currentPath}>Dashboard</NavLink>
         </div>
       </nav>
 
       {/* Content */}
       {children}
+
+      {/* Footer */}
+      <div className="px-4 py-3 border-t border-iris-border mt-auto">
+        <div className="flex items-center justify-between text-[10px] mb-2">
+          <span className="text-zinc-600">I.R.I.S. v1.2.0</span>
+          <span className="text-zinc-600">© 2026 KaiTooast</span>
+        </div>
+        <div className="flex items-center gap-3 text-[10px]">
+          <a href="https://github.com/KaiTooast/iris" target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-white transition-colors">GitHub</a>
+          <span className="text-zinc-700">•</span>
+          <a href="https://github.com/KaiTooast/iris/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-white transition-colors">License (CC BY 4.0)</a>
+          <span className="text-zinc-700">•</span>
+          <a href="https://github.com/KaiTooast/iris#readme" target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-white transition-colors">Docs</a>
+        </div>
+      </div>
     </aside>
   )
 }

@@ -31,7 +31,7 @@ from src.api.services.history import generation_history
 from src.api.services.queue import generation_queue
 
 # Routes
-from src.api.routes import system, gallery, queue, history, templates
+from src.api.routes import system, gallery, queue, history, templates, admin
 
 # Utils
 from src.core.config import Config
@@ -57,6 +57,7 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 ASSETS_DIR = BASE_DIR / "assets"
 STATIC_DIR = BASE_DIR / "static"
 FRONTEND_DIR = Config.BASE_DIR / "frontend"
+REACT_DIST_DIR = BASE_DIR / "frontend-react" / "dist"
 
 # WebSocket clients
 connected_clients = []
@@ -67,6 +68,14 @@ generation_stats = {
     "total_images": 0,
     "total_time": 0
 }
+
+# Settings Cache (reduces disk reads on frequent polling)
+_settings_cache = None
+_settings_cache_time = 0
+SETTINGS_CACHE_TTL = 2.0  # Cache settings for 2 seconds
+
+# Server start time for health check
+_server_start_time = None
 
 # Discord Bot Process (global for shutdown handling)
 _discord_bot_process = None
@@ -282,6 +291,9 @@ async def _load_upscaler_bsrgan(use_cpu: bool = False, tile_size: int = 256):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan events for FastAPI startup and shutdown"""
+    global _server_start_time
+    _server_start_time = datetime.now()
+    
     logger.info("Starting I.R.I.S. Server...")
     logger.info("=" * 70)
     
@@ -335,7 +347,7 @@ async def lifespan(app: FastAPI):
 # Create FastAPI app
 app = FastAPI(
     title="I.R.I.S. API",
-    version="1.0.0",
+    version="1.2.0",
     description="Intelligent Rendering & Image Synthesis",
     lifespan=lifespan
 )
@@ -380,6 +392,7 @@ app.include_router(gallery.router)
 app.include_router(queue.router)
 app.include_router(history.router)
 app.include_router(templates.router)
+app.include_router(admin.router)
 
 
 # ============ Exception Handlers ============
@@ -428,29 +441,58 @@ async def nsfw_exception_handler(request: Request, exc: NSFWContentError):
 
 
 # ============ Page Routes ============
+# Only serve HTML frontend if IRIS_NO_HTML is not set
 
-@app.get("/")
-async def root():
-    """Serve index page"""
-    return FileResponse(FRONTEND_DIR / "index.html")
+if not os.getenv("IRIS_NO_HTML"):
+    @app.get("/")
+    async def root():
+        """Serve index page"""
+        return FileResponse(FRONTEND_DIR / "index.html")
+
+    @app.get("/generate")
+    async def generate_page():
+        """Serve generate page"""
+        return FileResponse(FRONTEND_DIR / "generate.html")
+
+    @app.get("/gallery")
+    async def gallery_page():
+        """Serve gallery page"""
+        return FileResponse(FRONTEND_DIR / "gallery.html")
+
+    @app.get("/settings")
+    async def settings_page():
+        """Serve settings page"""
+        return FileResponse(FRONTEND_DIR / "settings.html")
+else:
+    logger.info("HTML frontend disabled (IRIS_NO_HTML set)")
 
 
-@app.get("/generate")
-async def generate_page():
-    """Serve generate page"""
-    return FileResponse(FRONTEND_DIR / "generate.html")
+# ============ React Frontend Routes ============
+# Serve React production build if IRIS_SERVE_REACT is set
 
-
-@app.get("/gallery")
-async def gallery_page():
-    """Serve gallery page"""
-    return FileResponse(FRONTEND_DIR / "gallery.html")
-
-
-@app.get("/settings")
-async def settings_page():
-    """Serve settings page"""
-    return FileResponse(FRONTEND_DIR / "settings.html")
+if os.getenv("IRIS_SERVE_REACT"):
+    if REACT_DIST_DIR.exists():
+        # Mount React static assets
+        app.mount("/app/assets", StaticFiles(directory=str(REACT_DIST_DIR / "assets")), name="react-assets")
+        logger.success(f"React frontend mounted at /app")
+        
+        @app.get("/app/{full_path:path}")
+        async def serve_react_app(full_path: str = ""):
+            """Serve React SPA - all routes return index.html"""
+            index_path = REACT_DIST_DIR / "index.html"
+            if index_path.exists():
+                return FileResponse(index_path)
+            raise HTTPException(status_code=404, detail="React build not found")
+        
+        @app.get("/app")
+        async def serve_react_root():
+            """Serve React SPA root"""
+            index_path = REACT_DIST_DIR / "index.html"
+            if index_path.exists():
+                return FileResponse(index_path)
+            raise HTTPException(status_code=404, detail="React build not found")
+    else:
+        logger.warning(f"React build not found at {REACT_DIST_DIR} - run 'npm run build' in frontend-react/")
 
 
 @app.get("/favicon.ico")
@@ -500,8 +542,10 @@ async def generate_image_internal(
     progress_callback=None
 ) -> dict:
     """Internal generation function with optional progress callback"""
+    logger.info(f"generate_image_internal called with prompt: {prompt[:50]}...")
     
     if pipeline_service.pipe is None:
+        logger.error("Pipeline is None - model not loaded!")
         raise ModelNotLoadedError()
     
     # Update bot status - generating
@@ -541,10 +585,11 @@ async def generate_image_internal(
         width, height, steps = pipeline_service.get_safe_params(width, height, steps)
     
     # Prepare seed
-    if seed == -1:
+    if seed is None or seed == -1:
         seed = np.random.randint(0, 2147483647)
     
     generator = torch.Generator(pipeline_service.device).manual_seed(seed)
+    logger.info(f"Generator created with seed: {seed}")
     
     # Build prompt
     if style == "pixel_art":
@@ -555,9 +600,11 @@ async def generate_image_internal(
         neg_prompt = negative_prompt or "lowres, bad anatomy, worst quality"
     
     start_time = time.time()
+    logger.info(f"Starting generation: {width}x{height}, {steps} steps, cfg={cfg_scale}")
     
     if pipeline_service.device == "cuda":
         torch.cuda.empty_cache()
+        logger.info("CUDA cache cleared")
     
     # Get the event loop BEFORE entering the thread executor
     main_loop = asyncio.get_event_loop()
@@ -600,11 +647,14 @@ async def generate_image_internal(
         if progress_callback:
             pipe_kwargs["callback_on_step_end"] = diffusers_callback
         
+        logger.info("Calling pipeline.pipe()...")
         result = await main_loop.run_in_executor(
             None,
             lambda: pipeline_service.pipe(**pipe_kwargs)
         )
+        logger.info("Pipeline completed successfully")
     except RuntimeError as e:
+        logger.error(f"RuntimeError during generation: {e}")
         error_msg = str(e).lower()
         if "out of memory" in error_msg or "cuda" in error_msg:
             # Get VRAM info if available
@@ -672,17 +722,22 @@ async def websocket_generate(websocket: WebSocket):
     
     try:
         while True:
+            logger.info("Waiting for WebSocket message...")
             data = await websocket.receive_text()
+            logger.info(f"Received WebSocket message: {data[:100]}...")
             request_data = json.loads(data)
             
             await websocket.send_json({"type": "started", "message": "Generation started"})
+            logger.info("Sent 'started' message to client")
             
             try:
                 # NSFW check
+                logger.info("Checking NSFW filter...")
                 nsfw_check = check_nsfw_prompt(
                     request_data.get("prompt", ""),
                     request_data.get("nsfw_filter_enabled", True)
                 )
+                logger.info(f"NSFW check result: {nsfw_check}")
                 if nsfw_check["is_unsafe"]:
                     await websocket.send_json({
                         "type": "error",
@@ -702,6 +757,8 @@ async def websocket_generate(websocket: WebSocket):
                         pass  # Client may have disconnected
                 
                 # Generate with progress callback
+                logger.info("Starting generate_image_internal...")
+                logger.info(f"Params: prompt={request_data.get('prompt', '')[:50]}, width={request_data.get('width')}, height={request_data.get('height')}, steps={request_data.get('steps')}")
                 result = await generate_image_internal(
                     prompt=request_data.get("prompt", ""),
                     negative_prompt=request_data.get("negative_prompt", ""),
@@ -731,6 +788,9 @@ async def websocket_generate(websocket: WebSocket):
                         pass
                 
             except Exception as e:
+                import traceback
+                logger.error(f"Generation error: {e}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
                 error_msg = str(e)
                 error_type = "generic"
                 
@@ -879,6 +939,83 @@ async def get_stats():
     }
 
 
+@app.get("/api/health")
+async def health_check():
+    """Health check endpoint for monitoring
+    
+    Returns server status, uptime, and component health.
+    Useful for load balancers, monitoring tools, and debugging.
+    """
+    global _server_start_time
+    
+    # Calculate uptime
+    uptime_seconds = 0
+    uptime_str = "unknown"
+    if _server_start_time:
+        uptime_delta = datetime.now() - _server_start_time
+        uptime_seconds = int(uptime_delta.total_seconds())
+        hours = uptime_seconds // 3600
+        minutes = (uptime_seconds % 3600) // 60
+        seconds = uptime_seconds % 60
+        uptime_str = f"{hours}h {minutes}m {seconds}s"
+    
+    # Check component health
+    model_loaded = pipeline_service.pipe is not None
+    model_name = pipeline_service.current_model if model_loaded else None
+    
+    # GPU status
+    gpu_available = torch.cuda.is_available()
+    gpu_info = None
+    if gpu_available:
+        try:
+            gpu_info = {
+                "name": torch.cuda.get_device_name(0),
+                "vram_total_gb": round(torch.cuda.get_device_properties(0).total_memory / (1024**3), 2),
+                "vram_used_gb": round(torch.cuda.memory_allocated(0) / (1024**3), 2),
+                "vram_free_gb": round((torch.cuda.get_device_properties(0).total_memory - torch.cuda.memory_allocated(0)) / (1024**3), 2)
+            }
+        except Exception:
+            pass
+    
+    # Upscaler status
+    upscaler_loaded = pipeline_service.upscaler is not None
+    
+    # Queue status
+    queue_size = len(generation_queue.queue) if hasattr(generation_queue, 'queue') else 0
+    
+    # Overall health status
+    is_healthy = model_loaded and (gpu_available or pipeline_service.device == "cpu")
+    
+    return {
+        "status": "healthy" if is_healthy else "degraded",
+        "timestamp": datetime.now().isoformat(),
+        "uptime": uptime_str,
+        "uptime_seconds": uptime_seconds,
+        "components": {
+            "model": {
+                "loaded": model_loaded,
+                "name": model_name,
+                "device": pipeline_service.device
+            },
+            "gpu": {
+                "available": gpu_available,
+                "info": gpu_info
+            },
+            "upscaler": {
+                "loaded": upscaler_loaded
+            },
+            "queue": {
+                "size": queue_size,
+                "processing": generation_queue.is_processing if hasattr(generation_queue, 'is_processing') else False
+            }
+        },
+        "stats": {
+            "total_generations": generation_stats["total_images"],
+            "total_generation_time": round(generation_stats["total_time"], 2)
+        }
+    }
+
+
 # ============ Settings API ============
 
 # Settings storage (in-memory, persisted to file)
@@ -932,17 +1069,32 @@ class SettingsRequest(BaseModel):
 
 @app.get("/api/settings")
 async def get_settings():
-    """Get current application settings"""
-    return {
+    """Get current application settings (cached for performance)"""
+    global _settings_cache, _settings_cache_time
+    
+    current_time = time.time()
+    
+    # Return cached settings if still valid
+    if _settings_cache is not None and (current_time - _settings_cache_time) < SETTINGS_CACHE_TTL:
+        return _settings_cache
+    
+    # Build fresh response and cache it
+    _settings_cache = {
         "success": True,
         "settings": app_settings
     }
+    _settings_cache_time = current_time
+    
+    return _settings_cache
 
 
 @app.post("/api/settings")
 async def save_settings(request: SettingsRequest):
     """Save application settings"""
-    global app_settings
+    global app_settings, _settings_cache
+    
+    # Invalidate cache
+    _settings_cache = None
     
     # Check if Discord setting changed
     discord_changed = app_settings.get("discordEnabled") != request.discordEnabled
@@ -1047,22 +1199,40 @@ async def handle_discord_bot(enabled: bool):
             logger.error(f"Failed to start Discord bot: {e}")
             return {"success": False, "message": str(e)}
     else:
-        # Force stop the bot
+        # Force stop the bot immediately
         if _discord_bot_process is not None:
             pid = _discord_bot_process.pid
             logger.info(f"Force stopping Discord bot (PID: {pid})...")
             try:
                 if os.name == 'nt':
-                    # Windows: Force kill immediately with taskkill
-                    subprocess.run(['taskkill', '/F', '/T', '/PID', str(pid)], 
-                                  capture_output=True, timeout=5)
+                    # Windows: Force kill immediately with taskkill /F /T
+                    # /F = Force, /T = Kill child processes too
+                    import subprocess
+                    result = subprocess.run(
+                        ['taskkill', '/F', '/T', '/PID', str(pid)], 
+                        capture_output=True, 
+                        timeout=3
+                    )
+                    if result.returncode != 0:
+                        # Fallback: try terminate then kill
+                        _discord_bot_process.terminate()
+                        try:
+                            _discord_bot_process.wait(timeout=1)
+                        except:
+                            _discord_bot_process.kill()
                 else:
-                    # Unix: SIGKILL
-                    _discord_bot_process.kill()
+                    # Unix: SIGKILL (immediate, no cleanup)
+                    import signal
+                    os.kill(pid, signal.SIGKILL)
                     _discord_bot_process.wait(timeout=2)
-                logger.success(f"Discord bot stopped (PID: {pid})")
+                logger.success(f"Discord bot force stopped (PID: {pid})")
             except Exception as e:
                 logger.error(f"Error stopping Discord bot: {e}")
+                # Last resort: try to kill anyway
+                try:
+                    _discord_bot_process.kill()
+                except:
+                    pass
             finally:
                 _discord_bot_process = None
         return {"success": True, "message": "Bot stopped"}
@@ -1110,6 +1280,168 @@ async def get_vram_status():
 async def check_vram_for_generation(width: int = 512, height: int = 768, steps: int = 35):
     """Pre-check if generation parameters will fit in VRAM"""
     return pipeline_service.check_vram_availability(width, height, steps)
+
+
+# ============ Variation API ============
+
+class VariationRequest(BaseModel):
+    filename: str
+    strength: Optional[float] = 0.5  # 0.0 = identical, 1.0 = completely different
+    steps: Optional[int] = 35
+    cfg_scale: Optional[float] = 7.0
+    seed: Optional[int] = -1  # -1 = random
+
+
+@app.post("/api/variation")
+async def create_variation(request: VariationRequest):
+    """Create a variation of an existing image using img2img
+    
+    Uses the original image as a starting point and applies noise based on strength.
+    Lower strength = closer to original, higher strength = more different.
+    """
+    from PIL import Image
+    
+    # Find the image
+    image_path = Path("outputs") / request.filename
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    if pipeline_service.pipe is None:
+        raise ModelNotLoadedError()
+    
+    try:
+        # Load original image
+        init_image = Image.open(image_path).convert("RGB")
+        width, height = init_image.size
+        
+        # Prepare seed
+        seed = request.seed
+        if seed is None or seed == -1:
+            seed = np.random.randint(0, 2147483647)
+        
+        generator = torch.Generator(pipeline_service.device).manual_seed(seed)
+        
+        # Try to get original prompt from history
+        original_prompt = "masterpiece, best quality"
+        original_negative = "lowres, bad anatomy, worst quality"
+        
+        # Look up in generation history
+        history_file = BASE_DIR / "static" / "data" / "generation_history.json"
+        if history_file.exists():
+            try:
+                with open(history_file, 'r', encoding='utf-8') as f:
+                    history = json.load(f)
+                    for entry in history:
+                        if entry.get("filename") == request.filename:
+                            original_prompt = f"masterpiece, best quality, {entry.get('prompt', '')}"
+                            original_negative = entry.get('negative_prompt', original_negative)
+                            break
+            except:
+                pass
+        
+        start_time = time.time()
+        
+        if pipeline_service.device == "cuda":
+            torch.cuda.empty_cache()
+        
+        # Check if pipeline supports img2img
+        # For standard diffusers pipelines, we need to use the img2img variant
+        try:
+            from diffusers import StableDiffusionImg2ImgPipeline, AutoPipelineForImage2Image
+            
+            # Try to create img2img pipeline from existing components
+            img2img_pipe = AutoPipelineForImage2Image.from_pipe(pipeline_service.pipe)
+            
+            result = img2img_pipe(
+                prompt=original_prompt,
+                negative_prompt=original_negative,
+                image=init_image,
+                strength=request.strength,
+                num_inference_steps=request.steps,
+                guidance_scale=request.cfg_scale,
+                generator=generator
+            )
+            
+        except Exception as e:
+            logger.warning(f"AutoPipeline failed, trying manual img2img: {e}")
+            # Fallback: Use noise injection method
+            # This works with any text2img pipeline
+            
+            from diffusers import DDIMScheduler
+            import torch.nn.functional as F
+            
+            # Encode the image to latent space
+            with torch.no_grad():
+                # Resize to match VAE requirements
+                target_size = (height // 8 * 8, width // 8 * 8)
+                init_image_resized = init_image.resize((target_size[1], target_size[0]), Image.Resampling.LANCZOS)
+                
+                # Convert to tensor
+                init_tensor = torch.from_numpy(np.array(init_image_resized)).float() / 255.0
+                init_tensor = init_tensor.permute(2, 0, 1).unsqueeze(0)
+                init_tensor = init_tensor.to(pipeline_service.device)
+                init_tensor = 2.0 * init_tensor - 1.0  # Normalize to [-1, 1]
+                
+                # Encode to latent
+                latents = pipeline_service.pipe.vae.encode(init_tensor).latent_dist.sample()
+                latents = latents * pipeline_service.pipe.vae.config.scaling_factor
+                
+                # Add noise based on strength
+                noise = torch.randn_like(latents, generator=generator)
+                
+                # Calculate timestep from strength
+                num_inference_steps = request.steps
+                timestep_start = int(num_inference_steps * request.strength)
+                
+                # Use scheduler to add noise
+                scheduler = pipeline_service.pipe.scheduler
+                scheduler.set_timesteps(num_inference_steps)
+                timesteps = scheduler.timesteps[timestep_start:]
+                
+                if len(timesteps) > 0:
+                    noisy_latents = scheduler.add_noise(latents, noise, timesteps[:1])
+                else:
+                    noisy_latents = latents
+            
+            # Generate with noisy latents
+            result = pipeline_service.pipe(
+                prompt=original_prompt,
+                negative_prompt=original_negative,
+                num_inference_steps=request.steps,
+                guidance_scale=request.cfg_scale,
+                generator=generator,
+                latents=noisy_latents if request.strength > 0 else None,
+                width=width,
+                height=height
+            )
+        
+        generation_time = time.time() - start_time
+        image = result.images[0]
+        
+        # Generate filename with var_ prefix
+        filename = generate_filename("var", seed, request.steps)
+        image.save(f"outputs/{filename}")
+        
+        logger.info(f"Created variation of {request.filename} -> {filename} (strength: {request.strength}, {generation_time:.1f}s)")
+        
+        # Convert to base64
+        buffered = io.BytesIO()
+        image.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        
+        return {
+            "success": True,
+            "image": f"data:image/png;base64,{img_str}",
+            "filename": filename,
+            "seed": seed,
+            "strength": request.strength,
+            "generation_time": round(generation_time, 2),
+            "original": request.filename
+        }
+        
+    except Exception as e:
+        logger.error(f"Variation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============ Upscale API ============
@@ -1315,3 +1647,171 @@ async def restart_server():
     asyncio.create_task(do_restart())
     
     return {"success": True, "message": "Server restarting..."}
+
+
+# ============ Admin Endpoints ============
+
+@app.get("/api/admin/logs")
+async def get_admin_logs():
+    """Get recent server logs for admin panel"""
+    logs = []
+    
+    # Try to read from log file if exists
+    log_file = BASE_DIR / "Logs" / "server.log"
+    if log_file.exists():
+        try:
+            with open(log_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()[-100:]  # Last 100 lines
+                for line in lines:
+                    # Parse log line format: "HH:MM:SS LEVEL message"
+                    parts = line.strip().split(' ', 2)
+                    if len(parts) >= 3:
+                        logs.append({
+                            "time": parts[0],
+                            "level": parts[1].replace('✓', 'INFO').replace('✗', 'ERROR').replace('⚠', 'WARN'),
+                            "message": parts[2] if len(parts) > 2 else ""
+                        })
+        except Exception as e:
+            logger.error(f"Failed to read logs: {e}")
+    
+    # If no log file, return recent in-memory logs
+    if not logs:
+        logs = [
+            {"time": time.strftime("%H:%M:%S"), "level": "INFO", "message": "Server is running"},
+            {"time": time.strftime("%H:%M:%S"), "level": "INFO", "message": f"Model: {pipeline_service.current_model or 'anime_kawai'}"},
+            {"time": time.strftime("%H:%M:%S"), "level": "INFO", "message": f"Device: {pipeline_service.device}"},
+        ]
+    
+    return {"logs": logs}
+
+
+@app.post("/api/admin/clear-cache")
+async def clear_cache():
+    """Clear CUDA cache and other caches"""
+    try:
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            logger.info("CUDA cache cleared by admin")
+        
+        # Clear settings cache
+        global _settings_cache, _settings_cache_time
+        _settings_cache = None
+        _settings_cache_time = 0
+        
+        return {"success": True, "message": "Cache cleared successfully"}
+    except Exception as e:
+        logger.error(f"Failed to clear cache: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@app.post("/api/admin/restart")
+async def admin_restart():
+    """Admin restart endpoint - same as server restart"""
+    return await restart_server()
+
+
+@app.get("/api/admin/system")
+async def get_admin_system_info():
+    """Get detailed system information for admin panel"""
+    import platform
+    
+    info = {
+        "python_version": platform.python_version(),
+        "os": platform.system(),
+        "os_version": platform.version(),
+        "machine": platform.machine(),
+        "processor": platform.processor(),
+    }
+    
+    # GPU info
+    if torch.cuda.is_available():
+        info["gpu"] = {
+            "name": torch.cuda.get_device_name(0),
+            "vram_total": f"{torch.cuda.get_device_properties(0).total_memory / (1024**3):.1f} GB",
+            "vram_used": f"{torch.cuda.memory_allocated(0) / (1024**3):.2f} GB",
+            "vram_free": f"{(torch.cuda.get_device_properties(0).total_memory - torch.cuda.memory_allocated(0)) / (1024**3):.2f} GB",
+            "cuda_version": torch.version.cuda,
+        }
+    
+    # Model info
+    info["model"] = {
+        "current": pipeline_service.current_model or "anime_kawai",
+        "device": pipeline_service.device,
+        "loaded": pipeline_service.pipe is not None,
+    }
+    
+    # Stats
+    info["stats"] = generation_stats
+    
+    return info
+
+
+@app.get("/api/gpu-info")
+async def get_gpu_info():
+    """Get detailed GPU and system information for dashboard"""
+    import psutil
+    
+    gpu_data = {
+        "gpu_name": "Unknown",
+        "gpu_utilization": 0,
+        "gpu_temp": 0,
+        "vram_used": 0,
+        "vram_total": 0,
+        "vram_free": 0,
+        "power_draw": 0,
+        "cpu_percent": 0,
+        "cpu_freq": 0,
+        "cpu_cores": 0,
+        "ram_used": 0,
+        "ram_total": 0,
+        "ram_percent": 0,
+    }
+    
+    # CPU info
+    try:
+        gpu_data["cpu_percent"] = psutil.cpu_percent(interval=0.1)
+        gpu_data["cpu_cores"] = psutil.cpu_count(logical=False) or psutil.cpu_count()
+        freq = psutil.cpu_freq()
+        if freq:
+            gpu_data["cpu_freq"] = freq.current / 1000  # Convert to GHz
+    except Exception:
+        pass
+    
+    # RAM info
+    try:
+        mem = psutil.virtual_memory()
+        gpu_data["ram_total"] = mem.total / (1024**3)
+        gpu_data["ram_used"] = mem.used / (1024**3)
+        gpu_data["ram_percent"] = mem.percent
+    except Exception:
+        pass
+    
+    # GPU info via PyTorch
+    if torch.cuda.is_available():
+        try:
+            gpu_data["gpu_name"] = torch.cuda.get_device_name(0)
+            props = torch.cuda.get_device_properties(0)
+            gpu_data["vram_total"] = props.total_memory / (1024**3)
+            gpu_data["vram_used"] = torch.cuda.memory_allocated(0) / (1024**3)
+            gpu_data["vram_free"] = gpu_data["vram_total"] - gpu_data["vram_used"]
+        except Exception:
+            pass
+    
+    # Try to get GPU utilization and temp via nvidia-smi (Windows/Linux)
+    try:
+        import subprocess
+        result = subprocess.run(
+            ['nvidia-smi', '--query-gpu=utilization.gpu,temperature.gpu,power.draw', '--format=csv,noheader,nounits'],
+            capture_output=True, text=True, timeout=2
+        )
+        if result.returncode == 0:
+            parts = result.stdout.strip().split(',')
+            if len(parts) >= 3:
+                gpu_data["gpu_utilization"] = float(parts[0].strip())
+                gpu_data["gpu_temp"] = float(parts[1].strip())
+                gpu_data["power_draw"] = float(parts[2].strip())
+    except Exception:
+        pass
+    
+    return {"gpu": gpu_data}

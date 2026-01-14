@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { clsx } from 'clsx'
 import { useStore, models, resolutions, qualityPresets } from '../store/useStore'
-import { getOutputGallery, getImageUrl, getWebSocketUrl, getSettings, upscaleImage } from '../lib/api'
+import { getOutputGallery, getImageUrl, getWebSocketUrl, getSettings, upscaleImage, createVariation } from '../lib/api'
 
 // Benchmark System - stores generation times per configuration
 function getBenchmarkData() {
@@ -85,6 +85,9 @@ export default function GeneratePage() {
   const [upscaleScale, setUpscaleScale] = useState(2)
   const [upscaleMethod, setUpscaleMethod] = useState('realesrgan')
   const [isUpscaling, setIsUpscaling] = useState(false)
+  const [showVariationPopup, setShowVariationPopup] = useState(false)
+  const [variationStrength, setVariationStrength] = useState(0.5)
+  const [isCreatingVariation, setIsCreatingVariation] = useState(false)
   const [eta, setEta] = useState(null)
   const [nsfwFilterEnabled, setNsfwFilterEnabled] = useState(true)
   const wsRef = useRef(null)
@@ -112,8 +115,8 @@ export default function GeneratePage() {
     loadOutputGallery()
     loadPromptHistory()
     loadNsfwFilterStatus()
-    // Poll NSFW filter status every 2 seconds for live sync with HTML frontend
-    const settingsInterval = setInterval(loadNsfwFilterStatus, 2000)
+    // Poll NSFW filter status every 30 seconds (reduced from 2s to avoid excessive requests)
+    const settingsInterval = setInterval(loadNsfwFilterStatus, 30000)
     return () => clearInterval(settingsInterval)
   }, [])
 
@@ -198,19 +201,31 @@ export default function GeneratePage() {
   }
 
   function handleGenerate() {
+    console.log('handleGenerate called', { isGenerating: generation.isGenerating })
     if (generation.isGenerating) return
+    console.log('Starting generation...')
     setGenerating(true)
     setProgress(0, 0, settings.steps, 'Initializing...')
     setGenerationTime(0)
     setEta(null)
 
-    const ws = new WebSocket(getWebSocketUrl())
+    // Close any existing WebSocket connection first
+    if (wsRef.current) {
+      console.log('Closing existing WebSocket...')
+      wsRef.current.close()
+      wsRef.current = null
+    }
+
+    const wsUrl = getWebSocketUrl()
+    console.log('Connecting to WebSocket:', wsUrl)
+    const ws = new WebSocket(wsUrl)
     wsRef.current = ws
 
     ws.onopen = () => {
+      console.log('WebSocket opened, sending request...')
       const [width, height] = getCurrentDimensions()
       
-      ws.send(JSON.stringify({
+      const request = {
         prompt: settings.prompt,
         negative_prompt: settings.negativePrompt,
         style: settings.model,
@@ -219,7 +234,9 @@ export default function GeneratePage() {
         cfg_scale: settings.cfg,
         seed: settings.seed,
         nsfw_filter_enabled: nsfwFilterEnabled,
-      }))
+      }
+      console.log('Request:', request)
+      ws.send(JSON.stringify(request))
     }
 
     ws.onmessage = (event) => {
@@ -241,10 +258,12 @@ export default function GeneratePage() {
         // Reload prompt history from server (server saves it automatically)
         loadPromptHistory()
         
-        setCurrentImage(data.image)
-        addSessionImage(data.image)
+        // Use filename instead of base64 for better upscale/variation support
+        const imageRef = data.filename || data.image
+        setCurrentImage(imageRef)
+        addSessionImage(imageRef)
         setGenerating(false)
-        setProgress(100, settings.steps, settings.steps, '✨ Complete!')
+        setProgress(100, settings.steps, settings.steps, 'Complete!')
         loadOutputGallery()
       } else if (data.type === 'error') {
         setGenerating(false)
@@ -260,9 +279,91 @@ export default function GeneratePage() {
 
   function handleDownload() {
     if (!generation.currentImage) return
+    
+    // Get original filename to detect image type
+    const originalFilename = generation.currentImage.split('/').pop() || ''
+    
+    // Detect image type from filename prefix
+    let imageType = 'gen'  // default: generated
+    let typePrefix = ''
+    
+    if (originalFilename.startsWith('up') || originalFilename.startsWith('upscaled')) {
+      imageType = 'upscaled'
+      // Extract scale from filename (e.g., up2x_, up4x_)
+      const scaleMatch = originalFilename.match(/^up(\d+)x_/)
+      typePrefix = scaleMatch ? `up${scaleMatch[1]}x_` : 'up_'
+    } else if (originalFilename.startsWith('var_') || originalFilename.startsWith('variation_')) {
+      imageType = 'variation'
+      typePrefix = 'var_'
+    }
+    
+    // Generate descriptive filename
+    // Format: iris_[type_][prompt]-[seed]-[steps]-[cfg]-[resolution]-[model].png
+    
+    // Extract important/descriptive parts from prompt
+    const boringWords = [
+      'masterpiece', 'best quality', 'ultra-detailed', 'high resolution', 'high quality',
+      'detailed', 'intricate', 'beautiful', 'stunning', 'amazing', 'gorgeous',
+      'cinematic lighting', 'cinematic', 'lighting', 'soft lighting', 'dramatic lighting',
+      'bokeh', 'soft bokeh', 'depth of field', 'dof', 'sharp focus', 'sharp',
+      '8k', '4k', 'hd', 'uhd', 'hdr', 'raw photo', 'photorealistic',
+      'highly detailed', 'extremely detailed', 'very detailed', 'super detailed',
+      'professional', 'award winning', 'trending on artstation', 'artstation',
+      'concept art', 'digital art', 'illustration', 'painting', 'artwork',
+      'perfect', 'flawless', 'realistic', 'hyperrealistic', 'ultra realistic',
+      'absurdres', 'highres', 'incredibly absurdres', 'huge filesize',
+      'wallpaper', 'official art', 'key visual',
+      'nsfw', 'sfw', 'safe', 'explicit', 'suggestive',
+    ]
+    
+    // Split by comma first to keep phrases together
+    const phrases = settings.prompt
+      .toLowerCase()
+      .split(',')
+      .map(p => p.trim())
+      .filter(p => p.length > 0)
+      .filter(p => !boringWords.some(bw => p === bw || p.startsWith(bw + ' ')))
+    
+    // Take first 8 phrases and join them
+    const promptShort = phrases
+      .slice(0, 8)
+      .join('_')
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9_-]/g, '')
+      .substring(0, 80) || 'image'
+    
+    // Get resolution
+    let resolution = settings.resolution
+    if (resolution === 'custom') {
+      resolution = `${settings.customWidth}x${settings.customHeight}`
+    }
+    
+    // Model abbreviation
+    const modelAbbrev = {
+      'animagine_xl': 'anmgn',
+      'anime_kawai': 'kawai',
+      'anything_v5': 'any5',
+      'aom3': 'aom3',
+      'counterfeit_v3': 'cf3',
+      'dreamshaper_8': 'ds8',
+      'openjourney': 'oj',
+      'pixel_art': 'pixel',
+      'stable_diffusion_2_1': 'sd21',
+      'stable_diffusion_3_5': 'sd35',
+      'waifu_diffusion': 'waifu',
+    }[settings.model] || settings.model.substring(0, 5)
+    
+    // Get seed from filename if available, otherwise use settings
+    let seed = settings.seed || 'rnd'
+    const seedMatch = originalFilename.match(/_(\d+)_s\d+\.png$/)
+    if (seedMatch) seed = seedMatch[1]
+    
+    // Build filename with type prefix
+    const downloadName = `iris_${typePrefix}${promptShort}-${seed}-s${settings.steps}-cfg${settings.cfg}-${resolution}-${modelAbbrev}.png`
+    
     const link = document.createElement('a')
     link.href = getImageUrl(generation.currentImage)
-    link.download = generation.currentImage.split('/').pop() || 'image.png'
+    link.download = downloadName
     link.click()
   }
 
@@ -286,9 +387,10 @@ export default function GeneratePage() {
     try {
       const result = await upscaleImage(filename, upscaleScale, upscaleMethod)
       if (result.success) {
-        // Update current image with upscaled version
-        setCurrentImage(result.image)
-        addSessionImage(result.image)
+        // Use filename instead of base64 for consistency
+        const imageRef = result.filename || result.image
+        setCurrentImage(imageRef)
+        addSessionImage(imageRef)
         loadOutputGallery()
       } else {
         alert('Upscale failed: ' + (result.error || 'Unknown error'))
@@ -298,6 +400,41 @@ export default function GeneratePage() {
       alert('Upscale failed: ' + e.message)
     } finally {
       setIsUpscaling(false)
+    }
+  }
+
+  async function handleVariation() {
+    if (!generation.currentImage || isCreatingVariation) return
+    
+    // Extract filename from currentImage
+    let filename = generation.currentImage
+    if (filename.startsWith('data:')) {
+      alert('Cannot create variation from base64 image. Please select an image from the library.')
+      return
+    }
+    if (filename.includes('/')) {
+      filename = filename.split('/').pop()
+    }
+    
+    setIsCreatingVariation(true)
+    setShowVariationPopup(false)
+    
+    try {
+      const result = await createVariation(filename, variationStrength, settings.steps, settings.cfg)
+      if (result.success) {
+        // Use filename instead of base64 for consistency
+        const imageRef = result.filename || result.image
+        setCurrentImage(imageRef)
+        addSessionImage(imageRef)
+        loadOutputGallery()
+      } else {
+        alert('Variation failed: ' + (result.error || 'Unknown error'))
+      }
+    } catch (e) {
+      console.error('Variation error:', e)
+      alert('Variation failed: ' + e.message)
+    } finally {
+      setIsCreatingVariation(false)
     }
   }
 
@@ -334,9 +471,29 @@ export default function GeneratePage() {
               <span className="text-[9px] font-mono text-purple-400/80 tracking-widest">AI STUDIO</span>
             </div>
           </Link>
-          <div className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
-            <span className="text-[10px] font-medium text-zinc-500">Ready</span>
+          {/* Dynamic Status Indicator */}
+          <div className="flex items-center gap-1.5">
+            {generation.isGenerating ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse shadow-[0_0_8px_rgba(168,85,247,0.6)]" />
+                <span className="text-[10px] font-medium text-purple-400">Generating</span>
+              </>
+            ) : isUpscaling ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
+                <span className="text-[10px] font-medium text-blue-400">Upscaling</span>
+              </>
+            ) : isCreatingVariation ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-pink-500 animate-pulse shadow-[0_0_8px_rgba(236,72,153,0.6)]" />
+                <span className="text-[10px] font-medium text-pink-400">Variation</span>
+              </>
+            ) : (
+              <>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+                <span className="text-[10px] font-medium text-zinc-500">Ready</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -346,7 +503,7 @@ export default function GeneratePage() {
             <Link to="/" className="flex-1 px-3 py-1.5 text-center text-[11px] font-medium rounded-md text-zinc-400 hover:text-white hover:bg-white/5 transition-all">Home</Link>
             <span className="flex-1 px-3 py-1.5 text-center text-[11px] font-medium rounded-md bg-iris-accent/20 text-iris-accentLight border border-iris-accent/30">Create</span>
             <Link to="/gallery" className="flex-1 px-3 py-1.5 text-center text-[11px] font-medium rounded-md text-zinc-400 hover:text-white hover:bg-white/5 transition-all">Gallery</Link>
-            <Link to="/settings" className="flex-1 px-3 py-1.5 text-center text-[11px] font-medium rounded-md text-zinc-400 hover:text-white hover:bg-white/5 transition-all">Settings</Link>
+            <Link to="/dashboard" className="flex-1 px-3 py-1.5 text-center text-[11px] font-medium rounded-md text-zinc-400 hover:text-white hover:bg-white/5 transition-all">Dashboard</Link>
           </div>
         </nav>
 
@@ -433,7 +590,7 @@ export default function GeneratePage() {
                       <span className="text-[10px] text-zinc-500 uppercase font-semibold">Custom Size</span>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-mono text-zinc-400">{megapixels} MP</span>
-                        {showVramWarning && <span className="text-[10px] text-amber-400">⚠️ High VRAM</span>}
+                        {showVramWarning && <span className="text-[10px] text-amber-400 flex items-center gap-1"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>High VRAM</span>}
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -547,7 +704,7 @@ export default function GeneratePage() {
                     </div>
                     <div className="flex items-center gap-2 mt-2 pt-2 border-t border-iris-border/50">
                       <span className="text-[10px] text-zinc-600">Empty = Random each time</span>
-                      {settings.seedLocked && <span className="text-[10px] text-zinc-600 ml-auto">🔒 Locked</span>}
+                      {settings.seedLocked && <span className="text-[10px] text-zinc-600 ml-auto flex items-center gap-1"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>Locked</span>}
                     </div>
                   </div>
                 </div>
@@ -759,6 +916,80 @@ export default function GeneratePage() {
                         <>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
                           Apply Upscale
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            {/* Variation Button */}
+            <div className="w-px h-6 bg-white/10 mx-1" />
+            <div className="relative">
+              <button onClick={() => setShowVariationPopup(!showVariationPopup)} className="px-4 py-2 rounded-xl text-xs font-medium text-pink-400 hover:bg-pink-500/10 transition flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                Variation
+              </button>
+              {/* Variation Popup */}
+              {showVariationPopup && (
+                <div className="absolute bottom-full left-0 mb-2 bg-iris-panel border border-iris-border rounded-xl shadow-2xl min-w-[280px] z-[9999]">
+                  {/* Strength Slider */}
+                  <div className="p-3 border-b border-iris-border/50">
+                    <div className="text-[10px] text-zinc-500 uppercase font-semibold mb-2">Variation Strength</div>
+                    <div className="space-y-2">
+                      <input 
+                        type="range" 
+                        min="0.1" 
+                        max="0.9" 
+                        step="0.1" 
+                        value={variationStrength} 
+                        onChange={(e) => setVariationStrength(parseFloat(e.target.value))}
+                        className="w-full accent-pink-500"
+                      />
+                      <div className="flex justify-between text-[10px] text-zinc-500">
+                        <span>Similar</span>
+                        <span className="text-pink-400 font-medium">{Math.round(variationStrength * 100)}%</span>
+                        <span>Different</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Presets */}
+                  <div className="p-3 border-b border-iris-border/50">
+                    <div className="text-[10px] text-zinc-500 uppercase font-semibold mb-2">Quick Presets</div>
+                    <div className="flex gap-2">
+                      {[
+                        { label: 'Subtle', value: 0.2 },
+                        { label: 'Medium', value: 0.5 },
+                        { label: 'Strong', value: 0.8 },
+                      ].map(preset => (
+                        <button 
+                          key={preset.label} 
+                          onClick={() => setVariationStrength(preset.value)} 
+                          className={clsx("flex-1 py-2 rounded-lg text-xs font-medium transition-all", variationStrength === preset.value ? "bg-pink-500/20 text-pink-400 border border-pink-500/30" : "bg-iris-card border border-iris-border text-zinc-500 hover:bg-white/5 hover:text-zinc-300")}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Apply Button */}
+                  <div className="p-3">
+                    <button 
+                      onClick={handleVariation} 
+                      disabled={isCreatingVariation}
+                      className="w-full py-2.5 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-500/90 hover:to-rose-500/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {isCreatingVariation ? (
+                        <>
+                          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
+                          Creating Variation...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                          Create Variation
                         </>
                       )}
                     </button>

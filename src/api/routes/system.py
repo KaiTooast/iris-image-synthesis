@@ -2,6 +2,7 @@
 System Routes - Health, GPU info, version endpoints
 """
 import subprocess
+import time
 import torch
 from fastapi import APIRouter
 
@@ -17,14 +18,41 @@ from src.utils.logger import create_logger
 logger = create_logger("SystemRoutes")
 router = APIRouter(prefix="/api", tags=["system"])
 
+# Track server start time for uptime
+_server_start_time = time.time()
+_total_generations = 0
+_total_generation_time = 0.0
+
+
+def increment_generation_stats(gen_time: float = 0.0):
+    """Called after each generation to update stats"""
+    global _total_generations, _total_generation_time
+    _total_generations += 1
+    _total_generation_time += gen_time
+
 
 @router.get("/health")
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint with stats"""
+    uptime_seconds = time.time() - _server_start_time
+    
+    # Format uptime
+    hours = int(uptime_seconds // 3600)
+    minutes = int((uptime_seconds % 3600) // 60)
+    if hours > 0:
+        uptime_str = f"{hours}h {minutes}m"
+    else:
+        uptime_str = f"{minutes}m"
+    
     return {
         "status": "healthy",
         "model_loaded": pipeline_service.pipe is not None,
-        "device": pipeline_service.device
+        "device": pipeline_service.device,
+        "uptime": uptime_str,
+        "stats": {
+            "total_generations": _total_generations,
+            "total_generation_time": round(_total_generation_time, 2)
+        }
     }
 
 

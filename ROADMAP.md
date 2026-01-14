@@ -39,7 +39,18 @@ This roadmap reflects intent, not promises.
 
 ---
 
-## 🔄 Phase 4 – Scaling & Services (In Progress)
+## ✅ Phase 4 – Admin & Management (Completed)
+
+- **Admin Panel** — Protected server management UI
+- **Server Modes** — api, html, react, full
+- **Image Variations** — img2img support
+- **Autosave Settings** — No manual save needed
+- **CTRL+R Restart** — Quick server restart
+- **Enhanced Monitoring** — GPU temp, power, utilization
+
+---
+
+## 🔄 Phase 5 – Scaling & Services (In Progress)
 
 - Multi-user support (optional)
 - Token / quota system (optional)
@@ -49,7 +60,7 @@ This roadmap reflects intent, not promises.
 
 ---
 
-## 🔮 Phase 5 – Community Ecosystem (Planned)
+## 🔮 Phase 6 – Community Ecosystem (Planned)
 
 - Plugin system
 - Community model packs

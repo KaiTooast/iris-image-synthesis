@@ -1,5 +1,5 @@
 # 📖 Setup Guide
-### Complete Installation Guide for I.R.I.S. v1.0.0
+### Complete Installation Guide for I.R.I.S. v1.2.0
 
 *Intelligent Rendering & Image Synthesis*
 

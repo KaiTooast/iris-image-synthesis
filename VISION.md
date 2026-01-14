@@ -75,4 +75,4 @@ To become the **foundation layer** upon which:
 I.R.I.S. is not finished.  
 It is **alive** — growing with every contribution.
 
-**Version 1.0.0** marks the beginning, not the end.
+**Version 1.2.0** marks the latest milestone.

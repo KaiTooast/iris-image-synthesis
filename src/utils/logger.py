@@ -1,9 +1,26 @@
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 import sys
 from logging.handlers import RotatingFileHandler
+
+
+# ============ Configuration ============
+
+# Log level from environment variable (DEBUG, INFO, WARNING, ERROR)
+LOG_LEVEL = os.environ.get("IRIS_LOG_LEVEL", "INFO").upper()
+LOG_LEVEL_MAP = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "WARN": logging.WARNING,
+    "ERROR": logging.ERROR,
+}
+
+# Session log retention
+SESSION_LOG_KEEP_COUNT = 10  # Keep last 10 session logs
+SESSION_LOG_MAX_AGE_DAYS = 7  # Delete logs older than 7 days
 
 
 # ANSI Color Codes for terminal output
@@ -97,12 +114,18 @@ class AIGeneratorLogger:
     """
     Custom logger for AI Image Generator
     Uses rotating log files to prevent disk space issues
+    
+    Environment Variables:
+        IRIS_LOG_LEVEL: Set log level (DEBUG, INFO, WARNING, ERROR)
     """
     
     def __init__(self, name: str = "AIGenerator", log_session: bool = True):
         self.name = name
         self.logs_dir = Path("Logs")
         self.logs_dir.mkdir(exist_ok=True)
+        
+        # Get configured log level
+        self.log_level = LOG_LEVEL_MAP.get(LOG_LEVEL, logging.INFO)
         
         # Main log file with rotation
         self.log_file = self.logs_dir / "iris.log"
@@ -113,7 +136,7 @@ class AIGeneratorLogger:
         
         # Setup logger
         self.logger = logging.getLogger(name)
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(logging.DEBUG)  # Capture all, filter at handler level
         
         # Clear any existing handlers
         self.logger.handlers.clear()
@@ -129,7 +152,7 @@ class AIGeneratorLogger:
             backupCount=5,
             encoding='utf-8'
         )
-        rotating_handler.setLevel(logging.DEBUG)
+        rotating_handler.setLevel(logging.DEBUG)  # File gets everything
         rotating_handler.setFormatter(file_formatter)
         
         # Session file handler (detailed logs for current session)
@@ -142,7 +165,7 @@ class AIGeneratorLogger:
         
         # Console handler (user-friendly colored output)
         console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(logging.DEBUG)
+        console_handler.setLevel(self.log_level)  # Respect configured level
         console_handler.setFormatter(ColoredFormatter())
         
         # Fix encoding issues on Windows
@@ -171,7 +194,7 @@ class AIGeneratorLogger:
         if log_session:
             self.log_session_start()
         
-        # Clean up old session logs (keep last 20)
+        # Clean up old session logs
         self._cleanup_old_sessions()
     
     def log_session_start(self):
@@ -181,17 +204,27 @@ class AIGeneratorLogger:
         self.logger.info(f"  Session: {self.session_start_time.strftime('%Y-%m-%d %H:%M:%S')}")
         self.logger.info("═" * 60)
     
-    def _cleanup_old_sessions(self, keep_count: int = 20):
-        """Remove old session log files, keeping the most recent ones"""
+    def _cleanup_old_sessions(self):
+        """Remove old session log files based on count and age"""
         try:
             session_files = sorted(
                 self.logs_dir.glob("session_*.log"),
                 key=lambda f: f.stat().st_mtime,
                 reverse=True
             )
-            for old_file in session_files[keep_count:]:
+            
+            cutoff_date = datetime.now() - timedelta(days=SESSION_LOG_MAX_AGE_DAYS)
+            
+            for i, log_file in enumerate(session_files):
+                # Keep the most recent ones regardless of age
+                if i < SESSION_LOG_KEEP_COUNT:
+                    continue
+                
+                # Delete if older than max age or exceeds count
                 try:
-                    old_file.unlink()
+                    file_time = datetime.fromtimestamp(log_file.stat().st_mtime)
+                    if file_time < cutoff_date or i >= SESSION_LOG_KEEP_COUNT:
+                        log_file.unlink()
                 except Exception:
                     pass
         except Exception:
